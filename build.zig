@@ -18,6 +18,7 @@ pub fn build(b: *std.Build) !void {
     switch (target.result.os.tag) {
         .windows => {
             lib.addCSourceFiles(.{ .files = windows_src_files });
+            lib.addCSourceFiles(.{ .files = render_driver_software_src_files });
             lib.linkSystemLibrary("gdi32");
             lib.linkSystemLibrary("imm32");
             lib.linkSystemLibrary("ole32");
@@ -25,6 +26,16 @@ pub fn build(b: *std.Build) !void {
             lib.linkSystemLibrary("setupapi");
             lib.linkSystemLibrary("version");
             lib.linkSystemLibrary("winmm");
+        },
+        .linux => {
+            inline for (@typeInfo(@TypeOf(c_defines)).@"struct".fields) |field| {
+                lib.defineCMacro(field.name, @field(c_defines, field.name));
+            }
+            lib.addCSourceFiles(.{ .files = linux_src_files });
+            lib.addCSourceFiles(.{ .files = render_driver_software_src_files });
+            lib.linkSystemLibrary("X11");
+            lib.linkSystemLibrary("Xext");
+            lib.linkSystemLibrary("pulse");
         },
         else => @panic("unsupported"),
     }
@@ -35,8 +46,26 @@ pub fn build(b: *std.Build) !void {
     };
 
     if (use_pregenerated_config) {
-        lib.addCSourceFiles(.{ .files = render_driver_software_src_files });
         lib.installHeadersDirectory(b.path("include/build_config"), "SDL3", .{});
+    } else {
+        lib.defineCMacro("USING_GENERATED_CONFIG_H", "");
+
+        const config_header = b.addConfigHeader(.{
+            .style = .{ .cmake = b.path("include/build_config/SDL_build_config.h.cmake") },
+            .include_path = "SDL_build_config.h",
+        }, cmake_header_config);
+        lib.addConfigHeader(config_header);
+        lib.installConfigHeader(config_header);
+
+        const revision_header = b.addConfigHeader(.{
+            .style = .{ .cmake = b.path("include/build_config/SDL_revision.h.cmake") },
+            .include_path = "SDL_revision.h",
+        }, .{
+            .SDL_VENDOR_INFO = "",
+            .SDL_REVISION = 0,
+        });
+        lib.addConfigHeader(revision_header);
+        lib.installConfigHeader(revision_header);
     }
 
     lib.addIncludePath(b.path("include"));
@@ -343,6 +372,81 @@ const windows_src_files: []const []const u8 = &.{
     "src/video/windows/SDL_windowswindow.c",
 };
 
+const linux_src_files: []const []const u8 = &.{
+    "src/audio/pulseaudio/SDL_pulseaudio.c",
+
+    "src/core/linux/SDL_evdev.c",
+    "src/core/linux/SDL_evdev_kbd.c",
+    "src/core/linux/SDL_threadprio.c",
+    "src/core/linux/SDL_evdev_capabilities.c",
+    "src/core/unix/SDL_poll.c",
+    "src/core/unix/SDL_appid.c",
+
+    "src/dialog/unix/SDL_unixdialog.c",
+    "src/dialog/unix/SDL_portaldialog.c",
+    "src/dialog/unix/SDL_zenitydialog.c",
+
+    "src/filesystem/unix/SDL_sysfilesystem.c",
+    "src/filesystem/posix/SDL_sysfsops.c",
+
+    "src/gpu/vulkan/SDL_gpu_vulkan.c",
+
+    "src/haptic/linux/SDL_syshaptic.c",
+
+    "src/joystick/linux/SDL_sysjoystick.c",
+    "src/joystick/steam/SDL_steamcontroller.c",
+
+    "src/locale/unix/SDL_syslocale.c",
+
+    "src/loadso/dlopen/SDL_sysloadso.c",
+
+    "src/misc/unix/SDL_sysurl.c",
+
+    "src/power/linux/SDL_syspower.c",
+
+    "src/process/posix/SDL_posixprocess.c",
+
+    "src/render/opengl/SDL_render_gl.c",
+    "src/render/opengl/SDL_shaders_gl.c",
+    "src/render/opengles2/SDL_render_gles2.c",
+    "src/render/opengles2/SDL_shaders_gles2.c",
+    "src/render/vulkan/SDL_render_vulkan.c",
+    "src/render/vulkan/SDL_shaders_vulkan.c",
+
+    "src/thread/pthread/SDL_systls.c",
+    "src/thread/pthread/SDL_syssem.c",
+    "src/thread/pthread/SDL_syscond.c",
+    "src/thread/pthread/SDL_sysmutex.c",
+    "src/thread/pthread/SDL_systhread.c",
+    "src/thread/pthread/SDL_sysrwlock.c",
+
+    "src/time/unix/SDL_systime.c",
+
+    "src/timer/unix/SDL_systimer.c",
+
+    "src/video/x11/SDL_x11dyn.c",
+    "src/video/x11/SDL_x11pen.c",
+    "src/video/x11/SDL_x11shape.c",
+    "src/video/x11/SDL_x11mouse.c",
+    "src/video/x11/SDL_x11video.c",
+    "src/video/x11/SDL_x11touch.c",
+    "src/video/x11/SDL_x11modes.c",
+    "src/video/x11/SDL_x11opengl.c",
+    "src/video/x11/SDL_x11window.c",
+    "src/video/x11/SDL_x11xfixes.c",
+    "src/video/x11/SDL_x11events.c",
+    "src/video/x11/SDL_x11vulkan.c",
+    "src/video/x11/SDL_x11xinput2.c",
+    "src/video/x11/SDL_x11keyboard.c",
+    "src/video/x11/SDL_x11settings.c",
+    "src/video/x11/SDL_x11opengles.c",
+    "src/video/x11/SDL_x11clipboard.c",
+    "src/video/x11/SDL_x11messagebox.c",
+    "src/video/x11/SDL_x11framebuffer.c",
+    "src/video/x11/edid-parse.c",
+    "src/video/x11/xsettings-client.c",
+};
+
 const render_driver_software_src_files: []const []const u8 = &.{
     "src/render/software/SDL_blendfillrect.c",
     "src/render/software/SDL_blendline.c",
@@ -352,4 +456,298 @@ const render_driver_software_src_files: []const []const u8 = &.{
     "src/render/software/SDL_render_sw.c",
     "src/render/software/SDL_rotate.c",
     "src/render/software/SDL_triangle.c",
+};
+
+const c_defines = .{
+    .HAVE_STDIO_H = "1",
+    .HAVE_STDDEF_H = "1",
+};
+
+const cmake_header_config = .{
+    .HAVE_LINUX_INPUT_H = "1",
+
+    .HAVE_GCC_ATOMICS = 1,
+    .HAVE_GCC_SYNC_LOCK_TEST_AND_SET = 0,
+
+    .HAVE_D3D11_H = 0,
+    .HAVE_DDRAW_H = 0,
+    .HAVE_DSOUND_H = 0,
+    .HAVE_DINPUT_H = 0,
+    .HAVE_XINPUT_H = 0,
+    .HAVE_WINDOWS_GAMING_INPUT_H = 0,
+    .HAVE_GAMEINPUT_H = 0,
+    .HAVE_DXGI_H = 0,
+    .HAVE_DXGI1_6_H = 0,
+
+    .HAVE_MMDEVICEAPI_H = 0,
+    .HAVE_AUDIOCLIENT_H = 0,
+    .HAVE_TPCSHRD_H = 0,
+    .HAVE_SENSORSAPI_H = 0,
+    .HAVE_ROAPI_H = 0,
+    .HAVE_SHELLSCALINGAPI_H = 0,
+
+    .USE_POSIX_SPAWN = 0,
+
+    .SDL_AUDIO_DISABLED = 0,
+    .SDL_JOYSTICK_DISABLED = 0,
+    .SDL_HAPTIC_DISABLED = 0,
+    .SDL_HIDAPI_DISABLED = 0,
+    .SDL_SENSOR_DISABLED = 0,
+    .SDL_RENDER_DISABLED = 0,
+    .SDL_THREADS_DISABLED = 0,
+    .SDL_VIDEO_DISABLED = 0,
+    .SDL_POWER_DISABLED = 0,
+    .SDL_CAMERA_DISABLED = 0,
+    .SDL_GPU_DISABLED = 0,
+
+    .SDL_AUDIO_DRIVER_ALSA = 0,
+    .SDL_AUDIO_DRIVER_ALSA_DYNAMIC = 0,
+    .SDL_AUDIO_DRIVER_OPENSLES = 0,
+    .SDL_AUDIO_DRIVER_AAUDIO = 0,
+    .SDL_AUDIO_DRIVER_COREAUDIO = 0,
+    .SDL_AUDIO_DRIVER_DISK = 0,
+    .SDL_AUDIO_DRIVER_DSOUND = 0,
+    .SDL_AUDIO_DRIVER_DUMMY = 0,
+    .SDL_AUDIO_DRIVER_EMSCRIPTEN = 0,
+    .SDL_AUDIO_DRIVER_HAIKU = 0,
+    .SDL_AUDIO_DRIVER_JACK = 0,
+    .SDL_AUDIO_DRIVER_JACK_DYNAMIC = 0,
+    .SDL_AUDIO_DRIVER_NETBSD = 0,
+    .SDL_AUDIO_DRIVER_OSS = 0,
+    .SDL_AUDIO_DRIVER_PIPEWIRE = 0,
+    .SDL_AUDIO_DRIVER_PIPEWIRE_DYNAMIC = 0,
+    .SDL_AUDIO_DRIVER_PULSEAUDIO = 1,
+    .SDL_AUDIO_DRIVER_PULSEAUDIO_DYNAMIC = 0,
+    .SDL_AUDIO_DRIVER_SNDIO = 0,
+    .SDL_AUDIO_DRIVER_SNDIO_DYNAMIC = 0,
+    .SDL_AUDIO_DRIVER_WASAPI = 0,
+    .SDL_AUDIO_DRIVER_VITA = 0,
+    .SDL_AUDIO_DRIVER_PSP = 0,
+    .SDL_AUDIO_DRIVER_PS2 = 0,
+    .SDL_AUDIO_DRIVER_N3DS = 0,
+    .SDL_AUDIO_DRIVER_QNX = 0,
+
+    .SDL_INPUT_LINUXEV = 1,
+    .SDL_INPUT_LINUXKD = 0,
+    .SDL_INPUT_FBSDKBIO = 0,
+    .SDL_INPUT_WSCONS = 0,
+    .SDL_HAVE_MACHINE_JOYSTICK_H = 0,
+    .SDL_JOYSTICK_ANDROID = 0,
+    .SDL_JOYSTICK_DINPUT = 0,
+    .SDL_JOYSTICK_DUMMY = 0,
+    .SDL_JOYSTICK_EMSCRIPTEN = 0,
+    .SDL_JOYSTICK_GAMEINPUT = 0,
+    .SDL_JOYSTICK_HAIKU = 0,
+    .SDL_JOYSTICK_HIDAPI = 1,
+    .SDL_JOYSTICK_IOKIT = 0,
+    .SDL_JOYSTICK_LINUX = 1,
+    .SDL_JOYSTICK_MFI = 0,
+    .SDL_JOYSTICK_N3DS = 0,
+    .SDL_JOYSTICK_PS2 = 0,
+    .SDL_JOYSTICK_PSP = 0,
+    .SDL_JOYSTICK_RAWINPUT = 0,
+    .SDL_JOYSTICK_USBHID = 0,
+    .SDL_JOYSTICK_VIRTUAL = 0,
+    .SDL_JOYSTICK_VITA = 0,
+    .SDL_JOYSTICK_WGI = 0,
+    .SDL_JOYSTICK_XINPUT = 0,
+    .SDL_HAPTIC_DUMMY = 0,
+    .SDL_HAPTIC_LINUX = 1,
+    .SDL_HAPTIC_IOKIT = 0,
+    .SDL_HAPTIC_DINPUT = 0,
+    .SDL_HAPTIC_ANDROID = 0,
+    .SDL_LIBUSB_DYNAMIC = 0,
+    .SDL_UDEV_DYNAMIC = 0,
+
+    .SDL_PROCESS_DUMMY = 0,
+    .SDL_PROCESS_POSIX = 1,
+    .SDL_PROCESS_WINDOWS = 0,
+
+    .SDL_SENSOR_ANDROID = 0,
+    .SDL_SENSOR_COREMOTION = 0,
+    .SDL_SENSOR_WINDOWS = 0,
+    .SDL_SENSOR_DUMMY = 0,
+    .SDL_SENSOR_VITA = 0,
+    .SDL_SENSOR_N3DS = 0,
+
+    .SDL_LOADSO_DLOPEN = 1,
+    .SDL_LOADSO_DUMMY = 0,
+    .SDL_LOADSO_LDG = 0,
+    .SDL_LOADSO_WINDOWS = 0,
+
+    .SDL_THREAD_GENERIC_COND_SUFFIX = 0,
+    .SDL_THREAD_GENERIC_RWLOCK_SUFFIX = 0,
+    .SDL_THREAD_PTHREAD = 1,
+    .SDL_THREAD_PTHREAD_RECURSIVE_MUTEX = 1,
+    .SDL_THREAD_PTHREAD_RECURSIVE_MUTEX_NP = 0,
+    .SDL_THREAD_WINDOWS = 0,
+    .SDL_THREAD_VITA = 0,
+    .SDL_THREAD_PSP = 0,
+    .SDL_THREAD_PS2 = 0,
+    .SDL_THREAD_N3DS = 0,
+
+    .SDL_TIME_UNIX = 1,
+    .SDL_TIME_WINDOWS = 0,
+    .SDL_TIME_VITA = 0,
+    .SDL_TIME_PSP = 0,
+    .SDL_TIME_PS2 = 0,
+    .SDL_TIME_N3DS = 0,
+
+    .SDL_TIMER_HAIKU = 0,
+    .SDL_TIMER_DUMMY = 0,
+    .SDL_TIMER_UNIX = 1,
+    .SDL_TIMER_WINDOWS = 0,
+    .SDL_TIMER_VITA = 0,
+    .SDL_TIMER_PSP = 0,
+    .SDL_TIMER_PS2 = 0,
+    .SDL_TIMER_N3DS = 0,
+
+    .SDL_VIDEO_DRIVER_ANDROID = 0,
+    .SDL_VIDEO_DRIVER_COCOA = 0,
+    .SDL_VIDEO_DRIVER_DUMMY = 0,
+    .SDL_VIDEO_DRIVER_EMSCRIPTEN = 0,
+    .SDL_VIDEO_DRIVER_HAIKU = 0,
+    .SDL_VIDEO_DRIVER_KMSDRM = 0,
+    .SDL_VIDEO_DRIVER_KMSDRM_DYNAMIC = 0,
+    .SDL_VIDEO_DRIVER_KMSDRM_DYNAMIC_GBM = 0,
+    .SDL_VIDEO_DRIVER_N3DS = 0,
+    .SDL_VIDEO_DRIVER_OFFSCREEN = 0,
+    .SDL_VIDEO_DRIVER_PS2 = 0,
+    .SDL_VIDEO_DRIVER_PSP = 0,
+    .SDL_VIDEO_DRIVER_RISCOS = 0,
+    .SDL_VIDEO_DRIVER_ROCKCHIP = 0,
+    .SDL_VIDEO_DRIVER_RPI = 0,
+    .SDL_VIDEO_DRIVER_UIKIT = 0,
+    .SDL_VIDEO_DRIVER_VITA = 0,
+    .SDL_VIDEO_DRIVER_VIVANTE = 0,
+    .SDL_VIDEO_DRIVER_VIVANTE_VDK = 0,
+    .SDL_VIDEO_DRIVER_OPENVR = 0,
+    .SDL_VIDEO_DRIVER_WAYLAND = 0,
+    .SDL_VIDEO_DRIVER_WAYLAND_DYNAMIC = 0,
+    .SDL_VIDEO_DRIVER_WAYLAND_DYNAMIC_CURSOR = 0,
+    .SDL_VIDEO_DRIVER_WAYLAND_DYNAMIC_EGL = 0,
+    .SDL_VIDEO_DRIVER_WAYLAND_DYNAMIC_LIBDECOR = 0,
+    .SDL_VIDEO_DRIVER_WAYLAND_DYNAMIC_XKBCOMMON = 0,
+    .SDL_VIDEO_DRIVER_WINDOWS = 0,
+    .SDL_VIDEO_DRIVER_X11 = 1,
+    .SDL_VIDEO_DRIVER_X11_DYNAMIC = 0,
+    .SDL_VIDEO_DRIVER_X11_DYNAMIC_XCURSOR = 0,
+    .SDL_VIDEO_DRIVER_X11_DYNAMIC_XEXT = 0,
+    .SDL_VIDEO_DRIVER_X11_DYNAMIC_XFIXES = 0,
+    .SDL_VIDEO_DRIVER_X11_DYNAMIC_XINPUT2 = 0,
+    .SDL_VIDEO_DRIVER_X11_DYNAMIC_XRANDR = 0,
+    .SDL_VIDEO_DRIVER_X11_DYNAMIC_XSS = 0,
+    .SDL_VIDEO_DRIVER_X11_HAS_XKBLOOKUPKEYSYM = 0,
+    .SDL_VIDEO_DRIVER_X11_SUPPORTS_GENERIC_EVENTS = 1,
+    .SDL_VIDEO_DRIVER_X11_XCURSOR = 0,
+    .SDL_VIDEO_DRIVER_X11_XDBE = 0,
+    .SDL_VIDEO_DRIVER_X11_XFIXES = 0,
+    .SDL_VIDEO_DRIVER_X11_XINPUT2 = 0,
+    .SDL_VIDEO_DRIVER_X11_XINPUT2_SUPPORTS_MULTITOUCH = 0,
+    .SDL_VIDEO_DRIVER_X11_XRANDR = 0,
+    .SDL_VIDEO_DRIVER_X11_XSCRNSAVER = 0,
+    .SDL_VIDEO_DRIVER_X11_XSHAPE = 0,
+    .SDL_VIDEO_DRIVER_QNX = 0,
+
+    .SDL_VIDEO_RENDER_D3D = 0,
+    .SDL_VIDEO_RENDER_D3D11 = 0,
+    .SDL_VIDEO_RENDER_D3D12 = 0,
+    .SDL_VIDEO_RENDER_GPU = 1,
+    .SDL_VIDEO_RENDER_METAL = 0,
+    .SDL_VIDEO_RENDER_VULKAN = 1,
+    .SDL_VIDEO_RENDER_OGL = 1,
+    .SDL_VIDEO_RENDER_OGL_ES2 = 1,
+    .SDL_VIDEO_RENDER_PS2 = 0,
+    .SDL_VIDEO_RENDER_PSP = 0,
+    .SDL_VIDEO_RENDER_VITA_GXM = 0,
+
+    .SDL_VIDEO_OPENGL = 1,
+    .SDL_VIDEO_OPENGL_ES = 1,
+    .SDL_VIDEO_OPENGL_ES2 = 1,
+    .SDL_VIDEO_OPENGL_BGL = 1,
+    .SDL_VIDEO_OPENGL_CGL = 1,
+    .SDL_VIDEO_OPENGL_GLX = 1,
+    .SDL_VIDEO_OPENGL_WGL = 1,
+    .SDL_VIDEO_OPENGL_EGL = 1,
+    .SDL_VIDEO_OPENGL_OSMESA = 1,
+    .SDL_VIDEO_OPENGL_OSMESA_DYNAMIC = 1,
+
+    .SDL_VIDEO_VULKAN = 1,
+
+    .SDL_VIDEO_METAL = 0,
+
+    .SDL_GPU_D3D11 = 0,
+    .SDL_GPU_D3D12 = 0,
+    .SDL_GPU_VULKAN = 1,
+    .SDL_GPU_METAL = 0,
+
+    .SDL_POWER_ANDROID = 0,
+    .SDL_POWER_LINUX = 1,
+    .SDL_POWER_WINDOWS = 0,
+    .SDL_POWER_MACOSX = 0,
+    .SDL_POWER_UIKIT = 0,
+    .SDL_POWER_HAIKU = 0,
+    .SDL_POWER_EMSCRIPTEN = 0,
+    .SDL_POWER_HARDWIRED = 0,
+    .SDL_POWER_VITA = 0,
+    .SDL_POWER_PSP = 0,
+    .SDL_POWER_N3DS = 0,
+
+    .SDL_FILESYSTEM_ANDROID = 0,
+    .SDL_FILESYSTEM_HAIKU = 0,
+    .SDL_FILESYSTEM_COCOA = 0,
+    .SDL_FILESYSTEM_DUMMY = 0,
+    .SDL_FILESYSTEM_RISCOS = 0,
+    .SDL_FILESYSTEM_UNIX = 1,
+    .SDL_FILESYSTEM_WINDOWS = 0,
+    .SDL_FILESYSTEM_EMSCRIPTEN = 0,
+    .SDL_FILESYSTEM_VITA = 0,
+    .SDL_FILESYSTEM_PSP = 0,
+    .SDL_FILESYSTEM_PS2 = 0,
+    .SDL_FILESYSTEM_N3DS = 0,
+
+    .SDL_STORAGE_GENERIC = 0,
+    .SDL_STORAGE_STEAM = 0,
+
+    .SDL_FSOPS_POSIX = 1,
+    .SDL_FSOPS_WINDOWS = 0,
+    .SDL_FSOPS_DUMMY = 0,
+
+    .SDL_CAMERA_DRIVER_DUMMY = 0,
+    .SDL_CAMERA_DRIVER_V4L2 = 0,
+    .SDL_CAMERA_DRIVER_COREMEDIA = 0,
+    .SDL_CAMERA_DRIVER_ANDROID = 0,
+    .SDL_CAMERA_DRIVER_EMSCRIPTEN = 0,
+    .SDL_CAMERA_DRIVER_MEDIAFOUNDATION = 0,
+    .SDL_CAMERA_DRIVER_PIPEWIRE = 0,
+    .SDL_CAMERA_DRIVER_PIPEWIRE_DYNAMIC = 0,
+    .SDL_CAMERA_DRIVER_VITA = 0,
+
+    .SDL_DIALOG_DUMMY = 0,
+
+    .SDL_MISC_DUMMY = 0,
+
+    .SDL_LOCALE_DUMMY = 0,
+
+    .SDL_ALTIVEC_BLITTERS = 0,
+
+    .DYNAPI_NEEDS_DLOPEN = 0,
+
+    .SDL_USE_IME = 0,
+
+    .SDL_IPHONE_KEYBOARD = 0,
+    .SDL_IPHONE_LAUNCHSCREEN = 0,
+
+    .SDL_VIDEO_VITA_PIB = 0,
+    .SDL_VIDEO_VITA_PVR = 0,
+    .SDL_VIDEO_VITA_PVR_OGL = 0,
+
+    .SDL_LIBDECOR_VERSION_MAJOR = 0,
+    .SDL_LIBDECOR_VERSION_MINOR = 0,
+    .SDL_LIBDECOR_VERSION_PATCH = 0,
+
+    .SDL_DEFAULT_ASSERT_LEVEL_CONFIGURED = 0,
+    .SDL_DEFAULT_ASSERT_LEVEL = 0,
+
+    .SDL_CAMERA_DRIVER_DISK = 0,
 };
