@@ -28,9 +28,6 @@ pub fn build(b: *std.Build) !void {
             lib.linkSystemLibrary("winmm");
         },
         .linux => {
-            inline for (@typeInfo(@TypeOf(c_defines)).@"struct".fields) |field| {
-                lib.defineCMacro(field.name, @field(c_defines, field.name));
-            }
             lib.addCSourceFiles(.{ .files = linux_src_files });
             lib.addCSourceFiles(.{ .files = render_driver_software_src_files });
             lib.linkSystemLibrary("X11");
@@ -46,6 +43,7 @@ pub fn build(b: *std.Build) !void {
     };
 
     if (use_pregenerated_config) {
+        lib.addIncludePath(b.path("include/build_config"));
         lib.installHeadersDirectory(b.path("include/build_config"), "SDL3", .{});
     } else {
         lib.defineCMacro("USING_GENERATED_CONFIG_H", "");
@@ -55,7 +53,7 @@ pub fn build(b: *std.Build) !void {
             .include_path = "SDL_build_config.h",
         }, cmake_header_config);
         lib.addConfigHeader(config_header);
-        lib.installConfigHeader(config_header);
+        lib.installHeader(config_header.getOutput(), "SDL3/SDL_build_config.h");
 
         const revision_header = b.addConfigHeader(.{
             .style = .{ .cmake = b.path("include/build_config/SDL_revision.h.cmake") },
@@ -65,11 +63,10 @@ pub fn build(b: *std.Build) !void {
             .SDL_REVISION = 0,
         });
         lib.addConfigHeader(revision_header);
-        lib.installConfigHeader(revision_header);
+        lib.installHeader(revision_header.getOutput(), "SDL3/SDL_build_config.h");
     }
 
     lib.addIncludePath(b.path("include"));
-    lib.addIncludePath(b.path("include/build_config"));
     lib.addIncludePath(b.path("src"));
     lib.installHeadersDirectory(b.path("include/SDL3"), "SDL3", .{});
 
@@ -393,6 +390,8 @@ const linux_src_files: []const []const u8 = &.{
 
     "src/haptic/linux/SDL_syshaptic.c",
 
+    "src/hidapi/linux/hid.c",
+
     "src/joystick/linux/SDL_sysjoystick.c",
     "src/joystick/steam/SDL_steamcontroller.c",
 
@@ -458,12 +457,113 @@ const render_driver_software_src_files: []const []const u8 = &.{
     "src/render/software/SDL_triangle.c",
 };
 
-const c_defines = .{
-    .HAVE_STDIO_H = "1",
-    .HAVE_STDDEF_H = "1",
-};
-
 const cmake_header_config = .{
+    .HAVE_LIBC = "1",
+    .HAVE_FLOAT_H = "1",
+    .HAVE_ICONV_H = "1",
+    .HAVE_INTTYPES_H = "1",
+    .HAVE_LIMITS_H = "1",
+    .HAVE_MALLOC_H = "1",
+    .HAVE_MATH_H = "1",
+    .HAVE_MEMORY_H = "1",
+    .HAVE_SIGNAL_H = "1",
+    .HAVE_STDARG_H = "1",
+    .HAVE_STDBOOL_H = "1",
+    .HAVE_STDDEF_H = "1",
+    .HAVE_STDINT_H = "1",
+    .HAVE_STDIO_H = "1",
+    .HAVE_STDLIB_H = "1",
+    .HAVE_STRINGS_H = "1",
+    .HAVE_STRING_H = "1",
+    .HAVE_SYS_TYPES_H = "1",
+    .HAVE_WCHAR_H = "1",
+
+    .HAVE_DLOPEN = "1",
+    .HAVE_MALLOC = "1",
+    .HAVE_CALLOC = "1",
+    .HAVE_REALLOC = "1",
+    .HAVE_FDATASYNC = "1",
+    .HAVE_FREE = "1",
+    .HAVE_GETENV = "1",
+    .HAVE_GETHOSTNAME = "1",
+    .HAVE_SETENV = "1",
+    .HAVE_PUTENV = "1",
+    .HAVE_UNSETENV = "1",
+    .HAVE_ABS = "1",
+    .HAVE_MEMSET = "1",
+    .HAVE_MEMCPY = "1",
+    .HAVE_MEMMOVE = "1",
+    .HAVE_MEMCMP = "1",
+    .HAVE_STRLEN = "1",
+    .HAVE_STRCHR = "1",
+    .HAVE_STRRCHR = "1",
+    .HAVE_STRSTR = "1",
+    .HAVE_STRTOLL = "1",
+    .HAVE_STRTOULL = "1",
+    .HAVE_STRTOD = "1",
+    .HAVE_ATOI = "1",
+    .HAVE_ATOF = "1",
+    .HAVE_STRCMP = "1",
+    .HAVE_STRNCMP = "1",
+    .HAVE_SSCANF = "1",
+    .HAVE_VSSCANF = "1",
+    .HAVE_VSNPRINTF = "1",
+    .HAVE_ACOS = "1",
+    .HAVE_ACOSF = "1",
+    .HAVE_ASIN = "1",
+    .HAVE_ASINF = "1",
+    .HAVE_ATAN = "1",
+    .HAVE_ATANF = "1",
+    .HAVE_ATAN2 = "1",
+    .HAVE_ATAN2F = "1",
+    .HAVE_CEIL = "1",
+    .HAVE_CEILF = "1",
+    .HAVE_COPYSIGN = "1",
+    .HAVE_COPYSIGNF = "1",
+    .HAVE_COS = "1",
+    .HAVE_COSF = "1",
+    .HAVE_EXP = "1",
+    .HAVE_EXPF = "1",
+    .HAVE_FABS = "1",
+    .HAVE_FABSF = "1",
+    .HAVE_FLOOR = "1",
+    .HAVE_FLOORF = "1",
+    .HAVE_FMOD = "1",
+    .HAVE_FMODF = "1",
+    .HAVE_ISINF = "1",
+    .HAVE_ISINFF = "1",
+    .HAVE_ISINF_FLOAT_MACRO = "1",
+    .HAVE_ISNAN = "1",
+    .HAVE_ISNANF = "1",
+    .HAVE_ISNAN_FLOAT_MACRO = "1",
+    .HAVE_LOG = "1",
+    .HAVE_LOGF = "1",
+    .HAVE_LOG10 = "1",
+    .HAVE_LOG10F = "1",
+    .HAVE_LROUND = "1",
+    .HAVE_LROUNDF = "1",
+    .HAVE_MODF = "1",
+    .HAVE_MODFF = "1",
+    .HAVE_POW = "1",
+    .HAVE_POWF = "1",
+    .HAVE_ROUND = "1",
+    .HAVE_ROUNDF = "1",
+    .HAVE_SCALBN = "1",
+    .HAVE_SCALBNF = "1",
+    .HAVE_SIN = "1",
+    .HAVE_SINF = "1",
+    .HAVE_SQRT = "1",
+    .HAVE_SQRTF = "1",
+    .HAVE_TAN = "1",
+    .HAVE_TANF = "1",
+    .HAVE_TRUNC = "1",
+    .HAVE_TRUNCF = "1",
+    .HAVE_SIGACTION = "1",
+    .HAVE_SA_SIGACTION = "1",
+    .HAVE_NANOSLEEP = "1",
+    .HAVE_CLOCK_GETTIME = "1",
+    .HAVE_GETPAGESIZE = "1",
+
     .HAVE_LINUX_INPUT_H = "1",
 
     .HAVE_GCC_ATOMICS = 1,
