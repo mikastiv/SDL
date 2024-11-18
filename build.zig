@@ -478,7 +478,6 @@ const cmake_header_config = .{
     .HAVE_SYS_TYPES_H = "1",
     .HAVE_WCHAR_H = "1",
 
-    .HAVE_DLOPEN = "1",
     .HAVE_MALLOC = "1",
     .HAVE_CALLOC = "1",
     .HAVE_REALLOC = "1",
